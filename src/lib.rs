@@ -172,12 +172,14 @@
 //! dual licensed as above, without any additional terms or conditions.
 
 #![cfg_attr(not(any(test, feature = "use-std")), no_std)]
+#![cfg_attr(feature = "unstable-gat", feature(generic_associated_types))]
 #![warn(missing_docs)]
 
 mod accumulator;
 mod de;
 mod error;
 mod ser;
+mod traits;
 mod varint;
 
 pub use accumulator::{CobsAccumulator, FeedResult};
@@ -185,6 +187,7 @@ pub use de::deserializer::Deserializer;
 pub use de::{from_bytes, from_bytes_cobs, take_from_bytes, take_from_bytes_cobs};
 pub use error::{Error, Result};
 pub use ser::{flavors, serialize_with_flavor, serializer::Serializer, to_slice, to_slice_cobs};
+//pub use traits
 
 #[cfg(feature = "heapless")]
 pub use ser::{to_vec, to_vec_cobs};
