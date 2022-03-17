@@ -183,17 +183,18 @@ mod traits;
 mod varint;
 
 pub use accumulator::{CobsAccumulator, FeedResult};
-pub use de::deserializer::Deserializer;
-pub use de::{from_bytes, from_bytes_cobs, take_from_bytes, take_from_bytes_cobs};
+pub use de::{
+    deserializer::Deserializer, from_bytes, from_bytes_cobs, take_from_bytes, take_from_bytes_cobs,
+};
 pub use error::{Error, Result};
 pub use ser::{flavors, serialize_with_flavor, serializer::Serializer, to_slice, to_slice_cobs};
-//pub use traits
-
-#[cfg(feature = "heapless")]
-pub use ser::{to_vec, to_vec_cobs};
-
-#[cfg(feature = "use-std")]
-pub use ser::{to_stdvec, to_stdvec_cobs};
-
 #[cfg(feature = "alloc")]
 pub use ser::{to_allocvec, to_allocvec_cobs};
+#[cfg(feature = "use-std")]
+pub use ser::{to_stdvec, to_stdvec_cobs};
+#[cfg(feature = "heapless")]
+pub use ser::{to_vec, to_vec_cobs};
+pub use traits::{
+    string::{PostcardString, PostcardStringRW},
+    vec::{Collection, PostcardVec, PostcardVecMut},
+};
