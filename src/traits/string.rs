@@ -6,16 +6,9 @@ use core::{
 
 use serde::Serialize;
 
-// sed -n 'p;/impl FromUtf8Error {/q' < "$HOME/.rustup/toolchains/nightly-x86_64-apple-darwin/lib/rustlib/src/rust/library/alloc/src/string.rs" | grep -A1 " #\[stable" | grep 'pub.*self' | grep -v '<' | sed 's/pub //' | sort | uniq
-// | sed 's/ {/;/' | pbcopy
-// ... plus manual purge
 pub trait StringRO {
     fn as_str(&self) -> &str;
 }
-
-// sed -n 'p;/impl FromUtf8Error {/q' < "$HOME/.rustup/toolchains/nightly-x86_64-apple-darwin/lib/rustlib/src/rust/library/alloc/src/string.rs" | grep -A1 " #\[stable" | grep 'pub.*self' | grep -v '<' | sed 's/pub //' | sort | uniq
-// | perl -lne 'print; /.*fn (.*)\(.*self(, (.*?): )?(.*((,.*?):))?.*\)/ && print "        self.$1($3$6)\n    }"' | pbcopy
-// ... plus manual purge
 
 #[cfg(feature = "use-std")]
 impl StringRO for std::string::String {
@@ -97,8 +90,10 @@ impl<const N: usize> StringRW for heapless::String<N> {
     }
 }
 
-// grep ' for String' "$HOME/.cargo/registry/src/github.com-1ecc6299db9ec823/heapless-0.7.10/src/string.rs" | grep -v '\$\|N1\|hash32' | sed -E "s/('a, |'a )//g" | awk '{print $4}' | tr -cd '[:alnum:]:&<>[]\n' | sed 's/^/ + /' | tr -d '\n' | pbcopy
+/// A serializable string-like
 pub trait PostcardString: StringRO + Serialize + AsRef<str> + Deref {}
+
+/// A serializable and mutable string-like
 pub trait PostcardStringRW: PostcardString + StringRW + AsMut<str> + DerefMut {}
 
 impl<T: StringRO + Serialize + AsRef<str> + Deref> PostcardString for T {}
