@@ -196,5 +196,8 @@ pub use ser::{to_stdvec, to_stdvec_cobs};
 pub use ser::{to_vec, to_vec_cobs};
 pub use traits::{
     string::{PostcardString, PostcardStringRW},
-    vec::{Collection, PostcardVec, PostcardVecMut},
+    vec::{
+        Collection, CollectionFamily, CollectionMut, IterMut, PostcardVec, PostcardVecMut,
+        VecFamily,
+    },
 };

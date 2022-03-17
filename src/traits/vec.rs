@@ -3,9 +3,40 @@ use core::{
     ops::{Deref, DerefMut},
     slice,
 };
-use std::marker::PhantomData;
+use std::{fmt::Debug, marker::PhantomData};
 
 use serde::Serialize;
+
+pub trait CollectionFamily: Serialize + Debug + Copy + Clone {
+    type Member<T>: PostcardVecMut<T>
+    where
+        T: Serialize + Debug + Clone;
+
+    fn new<T: Serialize + Debug + Clone>(&self) -> Self::Member<T>;
+}
+
+#[derive(Copy, Clone, PartialEq, Serialize, Debug)]
+pub struct VecFamily;
+
+#[cfg(feature = "use-std")]
+impl CollectionFamily for VecFamily {
+    type Member<T> = Vec<T> where T: Serialize + Debug + Clone;
+
+    fn new<T: Serialize + Debug + Clone>(&self) -> Self::Member<T> {
+        Self::Member::new()
+    }
+}
+
+// TODO
+// #[derive(Copy, Clone, PartialEq, Serialize)]
+// pub struct HVecFamily;
+// impl CollectionFamily for HVecFamily {
+//     type Member<T> = heapless::Vec<T, const N: usize> where T: Serialize  + Clone;
+
+//     fn new<T: Serialize + Clone, const N: usize>(&self) -> Self::Member<T> {
+//         Self::Member::new()
+//     }
+// }
 
 pub trait Collection<T> {
     type Iter<'iter>: Iterator<Item = &'iter T>
@@ -13,6 +44,9 @@ pub trait Collection<T> {
         Self: 'iter,
         T: 'iter;
     fn iterate<'iter>(&'iter self) -> Self::Iter<'iter>;
+
+    fn len(&self) -> usize;
+    fn is_empty(&self) -> bool;
 }
 
 pub struct NothingIterator<'it> {
@@ -39,6 +73,14 @@ impl Collection<()> for () {
     fn iterate<'iter>(&'iter self) -> Self::Iter<'iter> {
         NothingIterator::new()
     }
+
+    fn len(&self) -> usize {
+        unimplemented!()
+    }
+
+    fn is_empty(&self) -> bool {
+        unimplemented!()
+    }
 }
 
 #[cfg(feature = "use-std")]
@@ -47,12 +89,13 @@ impl<T> Collection<T> for Vec<T> {
     fn iterate<'iter>(&'iter self) -> slice::Iter<'iter, T> {
         self.iter()
     }
-}
 
-impl<T> Collection<T> for &[T] {
-    type Iter<'iter> = slice::Iter<'iter, T> where T: 'iter, Self: 'iter;
-    fn iterate<'iter>(&'iter self) -> slice::Iter<'iter, T> {
-        self.iter()
+    fn len(&self) -> usize {
+        self.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.is_empty()
     }
 }
 
@@ -61,6 +104,14 @@ impl<T, const N: usize> Collection<T> for heapless::Vec<T, N> {
         self.iter()
     }
     type Iter<'iter> = slice::Iter<'iter, T> where T: 'iter;
+
+    fn len(&self) -> usize {
+        N
+    }
+
+    fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
 }
 
 pub trait IterMut<T> {
@@ -74,6 +125,9 @@ pub trait IterMut<T> {
 pub trait CollectionMut<T>: IterMut<T> {
     type Err;
     fn push(&mut self, value: T) -> Result<(), Self::Err>;
+    fn insert(&mut self, index: usize, element: T);
+    fn remove(&mut self, index: usize) -> T;
+    fn clear(&mut self);
 }
 
 #[cfg(feature = "use-std")]
@@ -84,6 +138,18 @@ impl<T> CollectionMut<T> for Vec<T> {
         self.push(value);
 
         Ok(())
+    }
+
+    fn insert(&mut self, index: usize, element: T) {
+        self.insert(index, element)
+    }
+
+    fn remove(&mut self, index: usize) -> T {
+        self.remove(index)
+    }
+
+    fn clear(&mut self) {
+        self.clear()
     }
 }
 
@@ -117,11 +183,23 @@ impl<T, const N: usize> CollectionMut<T> for heapless::Vec<T, N> {
     fn push(&mut self, value: T) -> Result<(), Self::Err> {
         self.push(value)
     }
+
+    fn insert(&mut self, _index: usize, _element: T) {
+        unimplemented!()
+    }
+
+    fn remove(&mut self, _index: usize) -> T {
+        unimplemented!()
+    }
+
+    fn clear(&mut self) {
+        self.clear()
+    }
 }
 
 /// a serializable vector-like
-pub trait PostcardVec<T>: Collection<T> + Serialize + Deref + AsRef<[T]> {}
-impl<T, C: Collection<T> + Serialize + Deref + AsRef<[T]>> PostcardVec<T> for C {}
+pub trait PostcardVec<T>: Collection<T> + Serialize + Deref + AsRef<[T]> + Clone + Debug {}
+impl<T, C: Collection<T> + Serialize + Deref + AsRef<[T]> + Clone + Debug> PostcardVec<T> for C {}
 
 /// a serializable and mutable vector-like
 pub trait PostcardVecMut<T>: PostcardVec<T> + CollectionMut<T> + DerefMut + AsMut<[T]> {}
@@ -130,7 +208,7 @@ impl<T, C: PostcardVec<T> + CollectionMut<T> + DerefMut + AsMut<[T]>> PostcardVe
 #[cfg(all(test, feature = "use-std"))]
 mod tests {
 
-    use serde::Deserialize;
+    use serde::{de::DeserializeOwned, Deserialize};
 
     use super::*;
 
@@ -140,7 +218,7 @@ mod tests {
         _phantom: T,
     }
     #[test]
-    fn it_works() {
+    fn ser_de() {
         type HV32<T> = heapless::Vec<T, 32>;
 
         let mut std = Outer {
@@ -165,5 +243,38 @@ mod tests {
         // the LHS/RHS swap is intentional
         let _de_std: Outer<u8, std::vec::Vec<u8>> = serde_json::from_str(&ser_heapless).unwrap();
         let _de_heapless: Outer<u8, HV32<_>> = serde_json::from_str(&ser_std).unwrap();
+    }
+
+    type C<CF, T> = <CF as CollectionFamily>::Member<T>;
+
+    #[derive(Serialize, Debug, Clone)]
+    struct Inner2<CF: CollectionFamily> {
+        data: C<CF, u32>,
+    }
+
+    #[derive(Serialize)]
+    struct Outer2<CF: CollectionFamily> {
+        inners: C<CF, Inner2<CF>>, // <- cannot #[derive(Deserialize)]
+        simple: C<CF, u32>,
+    }
+
+    impl<CF: CollectionFamily> Outer2<CF> {
+        fn new(f: CF) -> Self {
+            Self {
+                simple: f.new(),
+                inners: f.new(),
+            }
+        }
+    }
+
+    #[test]
+    fn nested() {
+        let factory = VecFamily;
+
+        let mut outer = Outer2::new(factory);
+
+        outer.inners.push(Inner2 {
+            data: factory.new(),
+        });
     }
 }
