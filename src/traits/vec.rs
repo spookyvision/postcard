@@ -8,11 +8,11 @@ use std::{fmt::Debug, marker::PhantomData};
 use serde::Serialize;
 
 pub trait CollectionFamily: Serialize + Debug + Copy + Clone {
-    type Member<T>: PostcardVecMut<T>
+    type Member<T, const N: usize>: PostcardVecMut<T>
     where
         T: Serialize + Debug + Clone;
 
-    fn new<T: Serialize + Debug + Clone>(&self) -> Self::Member<T>;
+    fn new<T: Serialize + Debug + Clone, const N: usize>(&self) -> Self::Member<T, N>;
 }
 
 #[derive(Copy, Clone, PartialEq, Serialize, Debug)]
@@ -20,23 +20,23 @@ pub struct VecFamily;
 
 #[cfg(feature = "use-std")]
 impl CollectionFamily for VecFamily {
-    type Member<T> = Vec<T> where T: Serialize + Debug + Clone;
+    type Member<T, const N:usize> = Vec<T> where T: Serialize + Debug + Clone;
 
-    fn new<T: Serialize + Debug + Clone>(&self) -> Self::Member<T> {
+    fn new<T: Serialize + Debug + Clone, const N: usize>(&self) -> Self::Member<T, N> {
         Self::Member::new()
     }
 }
 
-// TODO
-// #[derive(Copy, Clone, PartialEq, Serialize)]
-// pub struct HVecFamily;
-// impl CollectionFamily for HVecFamily {
-//     type Member<T> = heapless::Vec<T, const N: usize> where T: Serialize  + Clone;
+#[derive(Copy, Clone, PartialEq, Serialize, Debug)]
+pub struct HVecFamily;
 
-//     fn new<T: Serialize + Clone, const N: usize>(&self) -> Self::Member<T> {
-//         Self::Member::new()
-//     }
-// }
+impl CollectionFamily for HVecFamily {
+    type Member<T, const N: usize> = heapless::Vec<T, N> where T: Serialize + Debug + Clone;
+
+    fn new<T: Serialize + Debug + Clone, const N: usize>(&self) -> Self::Member<T, N> {
+        Self::Member::new()
+    }
+}
 
 pub trait Collection<T> {
     type Iter<'iter>: Iterator<Item = &'iter T>
@@ -245,17 +245,17 @@ mod tests {
         let _de_heapless: Outer<u8, HV32<_>> = serde_json::from_str(&ser_std).unwrap();
     }
 
-    type C<CF, T> = <CF as CollectionFamily>::Member<T>;
+    type C<CF, T, const N: usize> = <CF as CollectionFamily>::Member<T, N>;
 
     #[derive(Serialize, Debug, Clone)]
     struct Inner2<CF: CollectionFamily> {
-        data: C<CF, u32>,
+        data: C<CF, u32, 2>,
     }
 
     #[derive(Serialize)]
     struct Outer2<CF: CollectionFamily> {
-        inners: C<CF, Inner2<CF>>, // <- cannot #[derive(Deserialize)]
-        simple: C<CF, u32>,
+        inners: C<CF, Inner2<CF>, 2>, // <- cannot #[derive(Deserialize)]
+        simple: C<CF, u32, 1>,
     }
 
     impl<CF: CollectionFamily> Outer2<CF> {
@@ -274,7 +274,38 @@ mod tests {
         let mut outer = Outer2::new(factory);
 
         outer.inners.push(Inner2 {
-            data: factory.new(),
+            data: factory.new::<_, 0>(),
         });
+    }
+
+    #[test]
+    fn heapless() {
+        let factory = HVecFamily;
+
+        let mut outer = Outer2::new(factory);
+
+        outer.simple.push(1).unwrap();
+        assert!(outer.simple.push(2).is_err());
+
+        outer
+            .inners
+            .push(Inner2 {
+                data: factory.new(),
+            })
+            .unwrap();
+
+        outer
+            .inners
+            .push(Inner2 {
+                data: factory.new(),
+            })
+            .unwrap();
+
+        assert!(outer
+            .inners
+            .push(Inner2 {
+                data: factory.new(),
+            })
+            .is_err(),);
     }
 }
