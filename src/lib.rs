@@ -194,10 +194,8 @@ pub use ser::{to_allocvec, to_allocvec_cobs};
 pub use ser::{to_stdvec, to_stdvec_cobs};
 #[cfg(feature = "heapless")]
 pub use ser::{to_vec, to_vec_cobs};
-pub use traits::{
-    string::{PostcardString, PostcardStringRW},
-    vec::{
-        Collection, CollectionFamily, CollectionMut, IterMut, PostcardVec, PostcardVecMut,
-        VecFamily,
-    },
+pub use traits::string::{PostcardString, PostcardStringRW};
+#[cfg(feature = "unstable-gat")]
+pub use traits::vec::{
+    Collection, CollectionFamily, CollectionMut, IterMut, PostcardVec, PostcardVecMut, VecFamily,
 };
